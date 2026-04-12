@@ -7,7 +7,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	repo "github.com/hadygust/ecom/internal/adapters/postgresql/sqlc"
+	"github.com/hadygust/ecom/internal/orders"
 	"github.com/hadygust/ecom/internal/products"
+	"github.com/jackc/pgx/v5"
 )
 
 // mount
@@ -33,9 +36,17 @@ func (app *application) mount() http.Handler {
 		w.Write([]byte("welcome"))
 	})
 
-	productHandler := products.NewHandler(nil)
+	productService := products.NewService(repo.New(&app.db))
+	productHandler := products.NewHandler(productService)
 
-	r.Get("/ListProducts", productHandler.ListProducts)
+	r.Route("/products", func(r chi.Router) {
+		r.Get("/", productHandler.ListProducts)
+		r.Get("/{id}", productHandler.GetProductByID)
+	})
+
+	orderService := orders.NewService(repo.New(&app.db), &app.db)
+	orderHandler := orders.NewHandler(orderService)
+	r.Post("/createOrder", orderHandler.PlaceOrder)
 
 	return r
 }
@@ -58,6 +69,7 @@ func (app *application) run(h http.Handler) error {
 
 type application struct {
 	config config
+	db     pgx.Conn
 }
 
 type config struct {
@@ -67,5 +79,4 @@ type config struct {
 
 type dbConfig struct {
 	dsn string // user= password= dbname=
-
 }
